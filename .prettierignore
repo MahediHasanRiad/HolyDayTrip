@@ -1,0 +1,10 @@
+.agents/
+docs/
+openspec/
+node_modules/
+dist/
+coverage/
+.env.example
+.gitignore
+.prettierignore
+Dockerfile
