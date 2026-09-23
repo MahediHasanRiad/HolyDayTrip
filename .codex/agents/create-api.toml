@@ -220,6 +220,8 @@ Repositories must not contain:
 - business decisions
 - authorization policy
 
+Every repository method that accesses Prisma MUST wrap its database operation in `try/catch`. Preserve known Prisma errors when a service needs to map them to a domain error, and rethrow unexpected errors for centralized handling. Never format HTTP responses or log sensitive data from a repository catch block.
+
 Avoid unnecessary database round trips.
 
 Avoid N+1 query patterns.

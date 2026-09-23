@@ -1,4 +1,3 @@
-import { app } from './app.js';
 import { prisma } from './config/db.js';
 import { env } from './config/env.js';
 import { redis } from './config/redis.js';
@@ -6,6 +5,8 @@ import { redis } from './config/redis.js';
 const start = async (): Promise<void> => {
     await prisma.$connect();
     await redis.connect();
+
+    const { app } = await import('./app.js');
 
     const server = app.listen(env.PORT, () => {
         console.log(`HolyDayTrip API listening on port ${env.PORT}`);

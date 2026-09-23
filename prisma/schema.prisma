@@ -10,91 +10,141 @@ datasource db {
 
 enum ReservationStatus {
   PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
 }
 
-model Owner {
-  id        String   @id @default(uuid())
-  name      String   @db.VarChar(120)
-  email     String   @unique @db.VarChar(320)
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+enum IdentityProvider {
+  GOOGLE
+}
 
-  hotels Hotel[]
+enum OtpPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
 
-  @@map("owners")
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  name            String    @db.VarChar(120)
+  email           String    @unique @db.VarChar(320)
+  password        String?   @db.VarChar(255)
+  contact         String?   @db.VarChar(11)
+  emailVerifiedAt DateTime? @db.Timestamptz(6)
+
+  isActive      Boolean            @default(true)
+  createdAt     DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime           @updatedAt @db.Timestamptz(6)
+  hotels        Hotel[]
+  reservations  Reservation[]
+  identities    ProviderIdentity[]
+  sessions      Session[]
+  otpChallenges OtpChallenge[]
+
+  @@map("users")
+}
+
+model ProviderIdentity {
+  id              String           @id @default(uuid()) @db.Uuid
+  userId          String           @db.Uuid
+  provider        IdentityProvider
+  providerSubject String           @db.VarChar(255)
+  createdAt       DateTime         @default(now()) @db.Timestamptz(6)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSubject])
+  @@index([userId])
+  @@map("provider_identities")
+}
+
+model Session {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  refreshTokenHash String    @unique @db.VarChar(64)
+  expiresAt        DateTime  @db.Timestamptz(6)
+  revokedAt        DateTime? @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @db.Timestamptz(6)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("sessions")
+}
+
+model OtpChallenge {
+  id         String     @id @default(uuid()) @db.Uuid
+  userId     String     @db.Uuid
+  purpose    OtpPurpose
+  codeHash   String     @db.VarChar(64)
+  expiresAt  DateTime   @db.Timestamptz(6)
+  attempts   Int        @default(0)
+  consumedAt DateTime?  @db.Timestamptz(6)
+  createdAt  DateTime   @default(now()) @db.Timestamptz(6)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, expiresAt])
+  @@map("otp_challenges")
 }
 
 model Hotel {
   id          String   @id @default(uuid()) @db.Uuid
   ownerId     String   @db.Uuid
   name        String   @db.VarChar(180)
+  district    String   @db.VarChar(100)
   location    String   @db.VarChar(180)
+  latitude    String?
+  longitude   String?
   description String   @db.Text
+  images      String[] @default([])
+  Facilities  String[] @default([])
   createdAt   DateTime @default(now()) @db.Timestamptz(6)
   updatedAt   DateTime @updatedAt @db.Timestamptz(6)
 
-  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  owner User   @relation(fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   rooms Room[]
 
   @@index([ownerId])
   @@index([location])
+  @@index([district])
   @@map("hotels")
 }
 
 model Room {
-  id        String   @id @default(uuid()) @db.Uuid
-  hotelId   String   @db.Uuid
-  name      String   @db.VarChar(120)
-  capacity  Int
-  amenities String[] @default([])
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  id              String   @id @default(uuid()) @db.Uuid
+  hotelId         String   @db.Uuid
+  name            String   @db.VarChar(120)
+  capacity        Int
+  bedType         String
+  viewType        String
+  roomSize        String
+  images          String[] @default([])
+  amenities       String[] @default([])
+  regularPrice    Decimal  @db.Decimal(12, 2)
+  discountedPrice Decimal  @db.Decimal()
+  currency        String   @db.Char(3)
+  checkIn         DateTime @db.Date
+  checkOut        DateTime @db.Date
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
 
-  hotel Hotel  @relation(fields: [hotelId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  offers Offer[]
+  hotel Hotel @relation(fields: [hotelId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@unique([hotelId, name])
   @@index([hotelId])
   @@map("rooms")
 }
 
-model Offer {
-  id        String   @id @default(uuid()) @db.Uuid
-  roomId    String   @db.Uuid
-  price     Decimal  @db.Decimal(12, 2)
-  currency  String   @db.Char(3)
-  checkIn   DateTime @db.Date
-  checkOut  DateTime @db.Date
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+model Reservation {
+  id         String            @id @default(uuid()) @db.Uuid
+  roomId     String            @db.Uuid
+  customerId String            @db.Uuid
+  status     ReservationStatus @default(PENDING)
+  createdAt  DateTime          @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime          @updatedAt @db.Timestamptz(6)
 
-  room         Room          @relation(fields: [roomId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  reservations Reservation[]
+  user User @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([roomId])
-  @@index([checkIn])
-  @@index([checkIn, checkOut])
-  @@map("offers")
-}
-
-model Reservation {
-  id                 String            @id @default(uuid()) @db.Uuid
-  offerId            String            @db.Uuid
-  customerName       String            @db.VarChar(120)
-  customerEmail      String            @db.VarChar(320)
-  status             ReservationStatus @default(PENDING)
-  hotelNameSnapshot  String            @db.VarChar(180)
-  roomNameSnapshot   String            @db.VarChar(120)
-  priceSnapshot      Decimal           @db.Decimal(12, 2)
-  currencySnapshot   String            @db.Char(3)
-  checkInSnapshot    DateTime          @db.Date
-  checkOutSnapshot   DateTime          @db.Date
-  createdAt          DateTime          @default(now()) @db.Timestamptz(6)
-  updatedAt          DateTime          @updatedAt @db.Timestamptz(6)
-
-  offer Offer @relation(fields: [offerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-
-  @@index([offerId])
-  @@index([customerEmail])
+  @@index([customerId])
   @@map("reservations")
 }

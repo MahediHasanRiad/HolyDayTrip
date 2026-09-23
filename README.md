@@ -37,3 +37,19 @@ The API reloads after edits to `src/`. PostgreSQL and Redis data are stored in n
 Copy `.env.example` to `.env`. The Docker API service uses `postgres` and `redis` hostnames internally; do not change them to `localhost` when running in Docker.
 
 The included PostgreSQL credentials are for local development only. Use unique secrets and environment-specific connection URLs for deployed environments.
+
+## Authentication
+
+`/api/v1/auth` supports email/password and Google sign-in, browser refresh cookies, mobile bearer access tokens, email verification, and password reset OTPs sent through Brevo. Configure the Google client ID, Brevo credentials, sender address, and a unique `AUTH_JWT_SECRET` before deploying. Browser clients must set `CORS_ORIGIN` to their exact origin and send credentials when refreshing a session. The API contract is documented in `docs/openapi.yaml`.
+
+## Migration recovery
+
+The repository's initial schema is `20260921180000_init`. If a local development database recorded the removed `20260921123425_init` migration as failed, recreate the disposable local database before applying migrations:
+
+```bash
+docker compose down -v
+docker compose up --build -d
+docker compose exec api npm run prisma:migrate:deploy
+```
+
+Do not reset a shared or production database. A failed production migration requires inspection of `_prisma_migrations` and the live schema before using `prisma migrate resolve`.

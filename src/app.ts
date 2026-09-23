@@ -18,7 +18,7 @@ app.use(requestIdMiddleware);
 app.use(
     cors({
         origin: env.CORS_ORIGIN,
-        credentials: false
+        credentials: true
     })
 );
 app.use(express.json({ limit: '100kb' }));
